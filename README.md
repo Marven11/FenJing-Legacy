@@ -129,9 +129,6 @@ print(r.text)
 
 ```python
 from ssti import shell_cmd
-
-import functools
-import time
 import logging
 
 logging.basicConfig(level = logging.WARNING)
