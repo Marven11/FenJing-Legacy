@@ -6,7 +6,7 @@
 
 ## Introduction
 
-FenJing is a payload generator targeting on Jinja SSTI. It supports automatically detecting and bypassing WAF.
+FenJing is a payload generator targeting on Jinja SSTI. It targets at automatically detecting and bypassing WAF.
 
 
 ## Usage
