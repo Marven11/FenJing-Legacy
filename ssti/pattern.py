@@ -610,7 +610,8 @@ class StrPattern4(StrPattern):
             self.require(PlainPattern, c)
 
     def _generate(self):
-        return "(%s)" % "+".join(f"'{c}'" for c in self.inner_s)
+        l = ["'" + c.replace("'", "\\'") + "'" for c in self.inner_s]
+        return "(%s)" % "+".join(l)
 
 
 class StrPattern5(StrPattern):
@@ -623,7 +624,8 @@ class StrPattern5(StrPattern):
             self.require(PlainPattern, c)
 
     def _generate(self):
-        return "(%s)" % "+".join(f"\"{c}\"" for c in self.inner_s)
+        l = ['"' + c.replace('"', "\\\"") + '"' for c in self.inner_s]
+        return "(%s)" % "+".join(l)
 
 
 class StrPattern6(StrPattern):
@@ -1218,3 +1220,4 @@ class OSPopenPattern2(OSPopenPattern):
             self.use(StrPattern, self.cmd),
             self.use(AttrPattern, "read")
         )
+
